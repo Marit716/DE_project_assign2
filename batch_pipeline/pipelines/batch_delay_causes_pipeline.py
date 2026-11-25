@@ -1,5 +1,5 @@
 """
-B2 Batch pipeline: "Why are flights late?" - delay-cause analysis
+Batch pipeline: "Why are flights late?" - delay-cause analysis
 
 Reads flights, airports and airlines CSVs from GCS, finds the share of each
 delay cause per airport and per airline (per month), finds each airport's main
