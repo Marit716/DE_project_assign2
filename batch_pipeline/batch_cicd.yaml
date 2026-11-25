@@ -1,0 +1,43 @@
+# CI/CD for the batch pipeline 
+# Copies the pipeline script to the VM, into the Spark driver container, and runs it.
+#
+# Substitution variables to set in the Cloud Build trigger:
+#   _VM_NAME     name of your VM
+#   _ZONE        zone of your VM (e.g. us-central1-a)
+#   _BUCKET      GCS bucket with the CSVs (also the BigQuery temp bucket)
+#   _BQ_DATASET  BigQuery dataset for the result tables
+# $PROJECT_ID is filled in by Cloud Build automatically.
+
+steps:
+  # Step 1: Copy the pipeline script from the repo to the VM
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: '/bin/sh'
+    args:
+      - '-c'
+      - |
+        gcloud compute scp ./pipelines/b2_delay_causes_pipeline.py $_VM_NAME:/tmp/b2_delay_causes_pipeline.py \
+          --zone=$_ZONE \
+          --project=$PROJECT_ID
+
+  # Step 2: Copy the script from the VM into the Spark driver container
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'compute'
+      - 'ssh'
+      - '$_VM_NAME'
+      - '--zone=$_ZONE'
+      - '--command=sudo docker cp /tmp/b2_delay_causes_pipeline.py spark-driver-app:/tmp/b2_delay_causes_pipeline.py'
+
+  # Step 3: Run the pipeline with spark-submit inside the container
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: '/bin/sh'
+    args:
+      - '-c'
+      - |
+        gcloud compute ssh $_VM_NAME \
+          --zone=$_ZONE \
+          --project=$PROJECT_ID \
+          --command="sudo docker exec spark-driver-app spark-submit --master spark://spark-master:7077 /tmp/b2_delay_causes_pipeline.py --project_id $PROJECT_ID --bucket $_BUCKET --dataset $_BQ_DATASET"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
